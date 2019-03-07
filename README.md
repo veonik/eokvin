@@ -35,12 +35,15 @@ Usage of ./eokvin:
 * A secret token is required to create new short URLs, given in the `-token`
   command-line option. This must be the hexadecimal string representation of
   the token (ie. 64 characters long) in question.
+
 * Use the `-hash-token` command-line option to print the SHA256 result 
   (formatted as the `-hash` option expects) of a given phrase.
+
   ```
   $ ./eokvin -hash-token "this is a really long and arbitrary input"
   d1e6d468c926d9167693c190688d964fec0258c4ef4a4e1ed9cd87ea9c682156
   ```
+
 * To avoid using LetsEncrypt (for example, when running locally), use a
   standard cert and key by using the `-cert-file` and `-key-file` 
   command-line options.

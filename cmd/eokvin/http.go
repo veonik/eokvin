@@ -3,16 +3,16 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/crypto/acme/autocert"
 	"log"
 	"net/http"
 	"strings"
+
+	"golang.org/x/crypto/acme/autocert"
 )
 
-func listenAndServe() error {
+func listenAndServeRedirect() error {
 	l := fmt.Sprintf("%s:%d", listenHost, listenPortHTTP)
 	srv := &http.Server{Addr: l, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		redirectToCanonicalHost(w, r)
@@ -31,7 +31,7 @@ func listenAndServeTLS() error {
 			HostPolicy: autocert.HostWhitelist(hosts...),
 			Cache:      autocert.DirCache("certs"),
 		}
-		srv.TLSConfig = &tls.Config{GetCertificate: m.GetCertificate}
+		srv.TLSConfig = m.TLSConfig()
 	}
 	return srv.ListenAndServeTLS(tlsCertFile, tlsKeyFile)
 }
@@ -100,7 +100,7 @@ func redirectToCanonicalHost(w http.ResponseWriter, r *http.Request) {
 }
 
 // newHandler is an http.Handler that creates a new item in the urlStore store.
-var newHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+var newHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	link := r.PostFormValue("url")
 	if len(link) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -114,7 +114,7 @@ var newHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *ht
 	urlStore.mu.Lock()
 	urlStore.entries[k] = newItem(link)
 	urlStore.mu.Unlock()
-	b, err := json.Marshal(map[string]string{"short-url": canonicalHost + k.String()})
+	b, err := json.Marshal(map[string]string{"short-url": canonicalHost + "/" + k.String()})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err = fmt.Fprintf(w, `{"error": "%s"}\n`, strings.Replace(err.Error(), `"`, `'`, -1))
@@ -128,11 +128,11 @@ var newHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *ht
 		log.Println("error writing response:", err.Error())
 	}
 	return
-})
+}
 
 // indexHandler is a catch-all http.Handler that attempts to lookup items in
 // the store based on request path.
-var indexHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+var indexHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimLeft(r.URL.Path, "/")
 	if len(key) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -157,4 +157,4 @@ var indexHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	}
 	w.WriteHeader(http.StatusNotFound)
 	return
-})
+}

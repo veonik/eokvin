@@ -31,17 +31,17 @@ var tlsCertFile string
 
 var rawToken string
 
-// ShortURLTTL the duration a short URL shall remain accessible.
-const ShortURLTTL = 30 * time.Minute
+// DefaultTTL the duration a short URL shall remain accessible.
+const DefaultTTL = 60 * time.Minute
 
 // urlStore contains URL values that map to short, random string keys.
-var urlStore = &store{entries: make(map[itemID]item), ttl: ShortURLTTL}
+var urlStore *store
 
 func init() {
-	flag.StringVar(&listenHost, "host", "eok.vin", "Listen hostname")
+	flag.StringVar(&listenHost, "host", "localhost", "Listen hostname")
 	flag.IntVar(&listenPortHTTPS, "port", 443, "HTTPS listen port")
 	flag.IntVar(&listenPortHTTP, "http-port", 80, "HTTP listen port")
-	flag.DurationVar(&urlTTL, "url-ttl", 30, "Short URLs expire after this delay")
+	flag.DurationVar(&urlTTL, "url-ttl", DefaultTTL, "Short URLs expire after this delay")
 	flag.StringVar(&tlsKeyFile, "key-file", "", "TLS private key file, blank for autocert")
 	flag.StringVar(&tlsCertFile, "cert-file", "", "TLS certificate chain file, blank for autocert")
 	flag.StringVar(&tokenSHA256, "token", "", "SHA256 of the secret token, used to authenticate")
@@ -54,6 +54,8 @@ func main() {
 	if err := parseFlags(); err != nil {
 		log.Fatal(err)
 	}
+
+	urlStore = &store{entries: make(map[itemID]item), ttl: urlTTL}
 
 	// Launch the HTTP->HTTPS redirect server.
 	go func() {
@@ -101,7 +103,7 @@ func parseFlags() error {
 	if listenPortHTTP <= 0 {
 		return errors.New("http-port must be > 0")
 	}
-	if len(tokenSHA256) != 64 {
+	if len(tokenSHA256) != sha256.BlockSize {
 		return errors.New("token must be a valid sha256 sum")
 	}
 

@@ -22,9 +22,15 @@ func (c itemID) String() string {
 type item struct {
 	value string
 	insertedAt time.Time
+	ttl time.Duration
 }
 func (c item) String() string {
 	return c.value
+}
+
+// newItem initializes a new url store item with a TTL.
+func newItem(s string, ttl time.Duration) item {
+	return item{value: s, insertedAt: time.Now(), ttl: ttl}
 }
 
 // A store is an in-memory data store with expiring items.
@@ -57,7 +63,12 @@ func (cch *store) newItemID() (itemID, error) {
 
 // isExpired returns true if the given item is expired.
 func (cch *store) isExpired(c item) bool {
-	return c.insertedAt.Before(time.Now().Add(-1 * cch.ttl))
+	ttl := c.ttl
+	if ttl == 0 {
+		// fallback to the stores configured ttl
+		ttl = cch.ttl
+	}
+	return c.insertedAt.Before(time.Now().Add(-1 * ttl))
 }
 
 // expiredItemReaper deletes expired entries from the store at regular
@@ -66,6 +77,8 @@ func (cch *store) expiredItemReaper() error {
 	for {
 		select {
 		case <-time.After(30 * time.Second):
+			// make a list of items that need to be deleted, but avoid
+			// fully locking the entries map.
 			var del []itemID
 			cch.mu.RLock()
 			for k, v := range cch.entries {
@@ -77,6 +90,8 @@ func (cch *store) expiredItemReaper() error {
 			if len(del) == 0 {
 				continue
 			}
+			// with at least one entry to delete, obtain a full write lock
+			// and make the modifications in a loop.
 			cch.mu.Lock()
 			for _, k := range del {
 				delete(cch.entries, k)
@@ -85,9 +100,3 @@ func (cch *store) expiredItemReaper() error {
 		}
 	}
 }
-
-// newItem initializes a new item.
-func newItem(s string) item {
-	return item{value: s, insertedAt: time.Now()}
-}
-

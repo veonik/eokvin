@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -135,26 +136,56 @@ func redirectToCanonicalHost(w http.ResponseWriter, r *http.Request) {
 
 // newHandler is an http.Handler that creates a new item in the urlStore store.
 var newHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+	var serverError = func(err error) {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println("error creating short url:", err.Error())
+		if _, err = w.Write([]byte(`{"error":"internal error"}`)); err != nil {
+			log.Println("error writing response:", err.Error())
+		}
+	}
+
+	var badRequest = func(message string) {
+		b, err := json.Marshal(map[string]string{"error": message})
+		if err != nil {
+			serverError(err)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err = w.Write(b); err != nil {
+			log.Println("error writing response:", err.Error())
+		}
+	}
+
 	link := r.PostFormValue("url")
 	if len(link) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		badRequest("url cannot be blank")
 		return
 	}
+	ttl := urlStore.ttl
+	s := r.PostFormValue("ttl")
+	if len(s) > 0 {
+		var err error
+		if ttl, err = time.ParseDuration(s); err != nil {
+			badRequest("invalid value given for ttl")
+			return
+		}
+	}
+
 	k, err := urlStore.newItemID()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		serverError(err)
 		return
 	}
 	urlStore.mu.Lock()
-	urlStore.entries[k] = newItem(link)
+	urlStore.entries[k] = newItem(link, ttl)
 	urlStore.mu.Unlock()
-	b, err := json.Marshal(map[string]string{"short-url": canonicalHost + "/" + k.String()})
+	b, err := json.Marshal(
+		map[string]string{
+			"short-url": canonicalHost + "/" + k.String(),
+			"expires": time.Now().Add(ttl).Format("2006-01-02T15:04:05-0700"),
+		})
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err = fmt.Fprintf(w, `{"error": "%s"}\n`, strings.Replace(err.Error(), `"`, `'`, -1))
-		if err != nil {
-			log.Println("error writing response:", err.Error())
-		}
+		serverError(err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)

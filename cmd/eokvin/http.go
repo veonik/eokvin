@@ -12,6 +12,40 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+const landingPageMarkup = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>eok.vin</title>
+  <link href="https://fonts.googleapis.com/css?family=Indie+Flower" rel="stylesheet">
+  <style>
+  html {
+    height: 100%;
+  }
+  body {
+    font-family: 'Indie Flower', sans-serif;
+    min-height: 100%;
+	padding: 0;
+	margin: 0;
+	display: -webkit-box;
+	display: -moz-box;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+  }
+  h {
+    font-size: 48pt;
+    text-align: center;
+  }
+  </style>
+</head>
+<body>
+  <h>eok.vin</h>
+</body>
+</html>`
+
 func listenAndServeRedirect() error {
 	l := fmt.Sprintf("%s:%d", listenHost, listenPortHTTP)
 	srv := &http.Server{Addr: l, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +169,9 @@ var newHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 var indexHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimLeft(r.URL.Path, "/")
 	if len(key) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		if _, err := w.Write([]byte(landingPageMarkup)); err != nil {
+			log.Println("error writing response:", err.Error())
+		}
 		return
 	}
 	k := itemID(key)

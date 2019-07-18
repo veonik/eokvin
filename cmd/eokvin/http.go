@@ -48,7 +48,7 @@ const landingPageMarkup = `<!doctype html>
 </html>`
 
 func listenAndServeRedirect() error {
-	l := fmt.Sprintf("%s:%d", listenHost, listenPortHTTP)
+	l := fmt.Sprintf(":%d", listenPortHTTP)
 	srv := &http.Server{Addr: l, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		redirectToCanonicalHost(w, r)
 		return
@@ -57,7 +57,7 @@ func listenAndServeRedirect() error {
 }
 
 func listenAndServeTLS() error {
-	l := fmt.Sprintf("%s:%d", listenHost, listenPortHTTPS)
+	l := fmt.Sprintf(":%d", listenPortHTTPS)
 	srv := &http.Server{Addr: l, Handler: newServeMux()}
 	if tlsKeyFile == "" && tlsCertFile == "" {
 		hosts := append([]string{listenHost}, fmt.Sprintf("www.%s", listenHost))
